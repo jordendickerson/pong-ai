@@ -2,7 +2,9 @@ import pygame as pg
 from game import Game
 import neat
 import os
+import pickle
 
+#install pygame and neat for this to run
 
 class PongGame:
     def __init__(self, window, width, height):
@@ -11,7 +13,9 @@ class PongGame:
         self.right_paddle = self.game.right_paddle
         self.ball = self.game.ball
 
-    def test_ai(self):
+    def test_ai(self, genome, config):
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+
         run = True
         clock = pg.time.Clock()
         while run:
@@ -26,9 +30,18 @@ class PongGame:
             if keys[pg.K_s]:
                 self.game.move_paddle(left=True, up=False)
 
+            output = net.activate((self.right_paddle.y, self.ball.y, abs(self.right_paddle.x) - self.ball.x))
+            decision = output.index(max(output))
+
+            if decision == 0:
+                pass
+            elif decision == 1:
+                self.game.move_paddle(left=False, up=True)
+            else:
+                self.game.move_paddle(left=False, up=False)
+
             game_info = self.game.loop()
-            print(game_info.left_score, game_info.right_score)
-            self.game.draw()
+            self.game.draw(True, False)
             pg.display.update()
         pg.quit()
 
@@ -88,20 +101,32 @@ def eval_genomes(genomes, config):
             game.train_ai(genome1, genome2, config)
 
 def run_neat(config):
-    # p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-1')
-    p = neat.Population(config)
+    p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-54')
+    # p = neat.Population(config)
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
     p.add_reporter(neat.Checkpointer(1))
 
     winner = p.run(eval_genomes, 50)
+    with open("best.pickle", "wb") as f:
+        pickle.dump(winner, f)
+def test_ai(config):
+    width, height = 700, 500
+    window = pg.display.set_mode((width, height))
+
+    with open("best.pickle", "rb") as f:
+        winner = pickle.load(f)
+
+    game = PongGame(window, width, height)
+    game.test_ai(winner, config)
 
 if __name__ == "__main__":
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, "config.txt")
 
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
-    run_neat(config)
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
+    # run_neat(config)
+    test_ai(config)
 
 
